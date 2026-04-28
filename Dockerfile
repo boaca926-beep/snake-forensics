@@ -1,38 +1,32 @@
-FROM python:3.11-slim
+FROM python:3.9-slim
 
-WORKDIR /app
-
-# Install system dependencies for Pygame
-# - xvfb: Virtual display for headless fallback
-# - vim: Useful for debugging
-# - curl: For testing connectivity
+# Install pygame and X11 dependencies (using correct package names)
 RUN apt-get update && apt-get install -y \
     libsdl2-2.0-0 \
-    libsdl2-mixer-2.0-0 \
     libsdl2-image-2.0-0 \
+    libsdl2-mixer-2.0-0 \
     libsdl2-ttf-2.0-0 \
-    libportmidi0 \
-    libfreetype6 \
-    xvfb \
-    vim \
-    curl \
+    libgl1 \
+    libgl1-mesa-dri \
+    libx11-6 \
+    libxext6 \
+    libxrender1 \
+    libxrandr2 \
+    libxcursor1 \
+    libxfixes3 \
+    libxi6 \
+    libxss1 \
+    libxtst6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Python dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Force software rendering for compatibility
+ENV LIBGL_ALWAYS_SOFTWARE=1
+ENV SDL_VIDEODRIVER=x11
 
-# Install dev tools (optional but handy)
-RUN pip install ipython debugpy
+# Install pygame
+RUN pip install pygame
 
-# Copy game code
-COPY snake.py .
+WORKDIR /app
+COPY . /app
 
-# Copy entrypoint and make executable
-COPY scripts/entrypoint.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/entrypoint.sh
-
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["python", "-u", "snake.py"]
-
-EXPOSE 5678
+CMD ["python3", "snake.py"]
