@@ -1,3 +1,4 @@
 pygame
 flask
 requests
+python-dotenv

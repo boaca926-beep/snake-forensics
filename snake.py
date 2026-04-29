@@ -35,6 +35,9 @@ DOWN = (0, 1)
 LEFT = (-1, 0)
 RIGHT = (1, 0)
 
+# API endpoint
+API_BASE = "http://localhost:5000"
+
 
 def random_food_position(snake):
     """
@@ -188,6 +191,22 @@ def reset_game():
     return snake, direction, next_direction, food, score
 
 
+def send_score_to_api(player_name, score):
+    """
+    Send the final score to the API
+    """
+    url = f"{API_BASE}/score"
+    payload = {"player_name": player_name, "score": score}
+    try:
+        response = requests.post(url, json=payload, timeout=2)
+        if response.status_code == 201:
+            print(f"Score saved: {player_name} - {score}")
+        else:
+            print(f"Failed to save score: {response.status_code} - {response.text}")
+    except requests.RequestException as e:
+        print(f"Error sending score to API: {e}")
+
+
 # The main program
 def main():
     # Set up display
@@ -201,6 +220,7 @@ def main():
 
     # Game state
     game_over = False
+    game_over_sent = False
     snake, direction, next_direction, food, score = reset_game()
 
     running = True
@@ -234,6 +254,7 @@ def main():
                         print(f"Reset game!")
                         snake, direction, next_direction, food, score = reset_game()
                         game_over = False
+                        game_over_sent = False
                     elif event.key == pygame.K_q:
                         running = False
                         pygame.quit()
@@ -305,21 +326,12 @@ def main():
         show_score(screen, font, score, player_name)  # Show score
 
         if game_over:
+
+            # Use a flag to avoid sending multiple times
+            if not game_over_sent:
+                send_score_to_api(player_name, score)
+                game_over_sent = True
             show_game_over(screen, font, score, player_name)
-
-            # Send the score
-            r"""
-            try:
-                response = requests.post("", json={"player_naeme": player_name, "score": score})
-                if response.status_code == 201:
-                    print("Score saved!")
-            except Exception as e:
-                print(f"Could not save score: {e}")
-
-            top = requests.get("http://localhost:5000/top-scores").json()
-            for entry in top:
-                print(f"{entry['player_name']}: {entry['score']}")
-            """
 
         pygame.display.flip()  # Update display
         clock.tick(FPS)  # Control game speed

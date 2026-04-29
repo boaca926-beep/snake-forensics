@@ -291,3 +291,144 @@ curl http://localhost:5000/top-scores
 ```
 
 ## Run as a Background Service
+
+## Inspect Database
+```bash
+# Run SQlite
+./inspect_db.sh
+```
+
+**Operations**
+```sql
+.tables          -- should show 'scores'
+.schema scores   -- see table structure
+SELECT * FROM scores;
+```
+
+## Auto‑refreshing leaderboard window
+
+### 1. Create leaderboard.html in your project folder
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Snake Game – Top Scores</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            background: #1e1e2f;
+            color: #ffffff;
+            text-align: center;
+            padding: 20px;
+        }
+        h1 {
+            color: #00cc66;
+        }
+        table {
+            margin: 0 auto;
+            border-collapse: collapse;
+            width: 80%;
+            max-width: 600px;
+            background: #2d2d3a;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        th, td {
+            padding: 12px;
+            border-bottom: 1px solid #444;
+        }
+        th {
+            background: #0f0f1a;
+            color: #00cc66;
+            font-size: 1.2em;
+        }
+        tr:hover {
+            background: #3a3a4a;
+        }
+        .refresh-note {
+            margin-top: 20px;
+            font-size: 0.8em;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐍 TOP SCORES</h1>
+    <div id="leaderboard">
+        <p>Loading scores...</p>
+    </div>
+    <div class="refresh-note">Updates every 10 seconds</div>
+
+    <script>
+        function fetchScores() {
+            fetch('http://localhost:5000/top-scores')
+                .then(response => response.json())
+                .then(data => {
+                    let html = '<table><tr><th>Rank</th><th>Player</th><th>Score</th><th>Date</th></tr>';
+                    data.forEach((entry, index) => {
+                        const date = new Date(entry.timestamp).toLocaleString();
+                        html += `<tr>
+                                    <td>${index+1}</td>
+                                    <td>${escapeHtml(entry.player_name)}</td>
+                                    <td>${entry.score}</td>
+                                    <td>${date}</td>
+                                 </tr>`;
+                    });
+                    html += '</table>';
+                    document.getElementById('leaderboard').innerHTML = html;
+                })
+                .catch(err => {
+                    document.getElementById('leaderboard').innerHTML = '<p style="color:red">Error loading scores. Make sure the API is running on port 5000.</p>';
+                    console.error(err);
+                });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // Fetch immediately, then every 10 seconds
+        fetchScores();
+        setInterval(fetchScores, 10000);
+    </script>
+</body>
+</html>
+```
+
+### 2. Modify snake.py to open the leaderboard
+```python
+import webbrowser   # add at the top
+
+# ... inside main(), after getting player_name:
+
+# Open the leaderboard window (only once)
+leaderboard_path = os.path.join(os.path.dirname(__file__), "leaderboard.html")
+webbrowser.open(f"file://{leaderboard_path}", new=2)  # new=2 opens in new tab if possible
+```
+
+### 3. Make sure the API is reachable
+```bash
+- The score-api container must be running and accessible on localhost:5000.
+
+- Your docker-compose.yml already maps "5000:5000", so the host can reach it.
+
+- The browser (running on your host) will fetch http://localhost:5000/top-scores without any problem.
+```
+
+### 4. Full integration to snake.py
+```python
+# At the top
+import webbrowser
+import os
+
+# Inside main(), after player_name is known:
+leaderboard_url = f"file://{os.path.abspath('leaderboard.html')}"
+webbrowser.open(leaderboard_url)
+```
