@@ -381,3 +381,9 @@ For ML / AI Engineer
 
 - Create a model retraining pipeline (trigger retraining when new scores arrive).
 ```
+
+## Note
+A Deeper Clean and Clean Up Unused Volumes
+```bash
+alias docker-clean='docker system prune -a && docker volume prune'
+```
