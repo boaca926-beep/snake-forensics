@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Snake Game</title>
+    <title>Snake Game - Leaderboard</title>
     <style>
         body {
             font-family: 'Courier New', monospace;
@@ -41,5 +41,67 @@
             font-size: 0.8em;
             color: #aaa;
         }
+        .error {
+            color: #ff8888;
+            background: #330000;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
+        }
     </style>
 </head>
+<body>
+    <h1>🐍 TOP SCORES</h1>
+    <div id="leaderboard">
+        <p>Loading scores...</p>
+    </div>
+    <div class="refresh-note">Updates every 10 seconds</div>
+
+    <script>
+        function fetchScores() {
+            fetch('http://localhost:5000/top-scores')
+                .then(response => {
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    let html = `<table>
+                        <thead>
+                            <tr><th>Rank</th><th>Player</th><th>Score</th><th>Date</th></tr>
+                        </thead>
+                        <tbody>
+                    `;
+                    data.forEach((entry, index) => {
+                        const date = new Date(entry.timestamp).toLocaleString();
+                        html += `<tr>
+                                    <td>${index + 1}</td>
+                                    <td>${escapeHtml(entry.player_name)}</td>
+                                    <td>${entry.score}</td>
+                                    <td>${date}</td>
+                                 </tr>`;
+                    });
+                    html += `</tbody></table>`;
+                    document.getElementById('leaderboard').innerHTML = html;
+                })
+                .catch(err => {
+                    document.getElementById('leaderboard').innerHTML =
+                        `<p class="error">⚠️ Error loading scores. Make sure the API is running on port 5000.</p>`;
+                    console.error(err);
+                });
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/[&<>]/g, function(m) {
+                if (m === '&') return '&amp;';
+                if (m === '<') return '&lt;';
+                if (m === '>') return '&gt;';
+                return m;
+            });
+        }
+
+        // Fetch immediately and then every 10 seconds
+        fetchScores();
+        setInterval(fetchScores, 10000);
+    </script>
+</body>
+</html>

@@ -41,6 +41,11 @@ A classic Snake game built with Python and Pygame. Control a snake, eat food to 
 # For Ubuntu system
 ./run.sh --rebuild
 ```
+
+```text
+--rebuild forces a fresh Docker image rebuild (useful after dependency changes).
+```
+
 - ✅ Detect if Docker is installed
 
 - ✅ Start Docker daemon if needed
@@ -71,8 +76,6 @@ pip install pygame
 3. **Run the game**
 ```bash
 python snake.py
-# or if using the original file
-python my_game.py
 ```
 
 ## 🐳 Docker Setup (For Linux with X11)
@@ -87,9 +90,20 @@ chmod +x run.sh
 ./run.sh
 ```
 
+<p align="center">
+  <img src="figures/game_end.png" alt="Top-10 scores output" width="300">
+  <img src="figures/snake_output.png" alt="Top-10 scores output" width="300">
+</p>
+
 3. **Rebuild Docker image if needed**
 ```bash
 ./run.sh --rebuild
+```
+
+## X11 Security Note
+The script uses xhost +local:docker for simplicity. On multi‑user systems, use a more restrictive command:
+```bash
+xhost +SI:localuser:root
 ```
 
 ## Docker Configuration
@@ -120,11 +134,14 @@ xhost -local:docker
 ```text
 snake-game/
 ├── snake.py              # Main game implementation
-├── docker-compose.yml   # Docker orchestration
-├── run.sh              # Quick start script
-├── requirements.txt    # Python dependencies
-├── pyproject.toml      # Project metadata
-└── README.md           # This file
+├── score_api.py          # Flask API + SQLite leaderboard
+├── leaderboard.html      # Auto‑refreshing web leaderboard
+├── docker-compose.yml    # Docker orchestration
+├── run.sh                # Quick start script
+├── inspect_db.sh         # SQLite inspection helper
+├── requirements.txt      # Python dependencies
+├── pyproject.toml        # Project metadata
+└── README.md             # This file
 ```
 
 ## Customization Options
@@ -188,110 +205,24 @@ Potential features to add:
 ## 🐛 Troubleshooting
 
 ### Common Issues
+## 🐛 Troubleshooting
 
-#### Issue: "Cannot connect to X server"
-```bash
-# Solution: Allow Docker to access X11
-xhost +local:docker
-export DISPLAY=$DISPLAY
-```
+### Common Issues
 
-#### Issue: Pygame won't install
-```bash
-# Solution: Install system dependencies
-# Ubuntu/Debian
-sudo apt-get install python3-pygame
-
-# macOS
-brew install pygame
-```
-
-#### Issue: Game runs too fast/slow
-```python
-# Solution: Adjust FPS in snake.py
-FPS = 10  # Higher = faster, Lower = slower
-```
-
-#### Issue: Docker GUI not showing
-```bash
-# Solution: Use software rendering
-export LIBGL_ALWAYS_SOFTWARE=1
-```
+| Issue | Solution |
+|-------|----------|
+| "Cannot connect to X server" | `xhost +local:docker` and `export DISPLAY=$DISPLAY` |
+| Pygame won't install | `sudo apt-get install python3-pygame` (Ubuntu) |
+| Game runs too fast/slow | Adjust `FPS` in `snake.py` (higher = faster, lower = slower) |
+| Docker GUI not showing | `export LIBGL_ALWAYS_SOFTWARE=1` |
+| Leaderboard shows no data | Ensure API is running on `localhost:5000` before opening `leaderboard.html` |
+| Port 5000 already in use | `fuser -k 5000/tcp` (Linux) or stop the process using the port |
 
 ## Flask API with SQLite that stores the highest scores and allows retrieval of the top 10.
-```python
-import sqlite3
-from datetime import datetime
-from flask import Flask, request, jsonify
-
-app = Flask(__name__)
-DATABASE = "scores.db"
-
-def init_db():
-    """Create the scores table if it doesn't exist."""
-    with sqlite3.connect(DATABASE) as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS scores (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                player_name TEXT NOT NULL,
-                score INTEGER NOT NULL,
-                timestamp TEXT NOT NULL
-            )
-        """)
-        # Index for faster top‑score queries
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_score ON scores(score DESC)")
-
-@app.route("/score", methods=["POST"])
-def add_score():
-    """
-    Expects JSON: {"player_name": "Alice", "score": 123}
-    Stores the score in the database.
-    """
-    data = request.get_json()
-    if not data or "player_name" not in data or "score" not in data:
-        return jsonify({"error": "Missing player_name or score"}), 400
-
-    player_name = data["player_name"][:50]          # limit length
-    score = data["score"]
-    timestamp = datetime.utcnow().isoformat()
-
-    with sqlite3.connect(DATABASE) as conn:
-        conn.execute(
-            "INSERT INTO scores (player_name, score, timestamp) VALUES (?, ?, ?)",
-            (player_name, score, timestamp)
-        )
-    return jsonify({"message": "Score saved"}), 201
-
-@app.route("/top-scores", methods=["GET"])
-def get_top_scores():
-    """Return the top 10 highest scores."""
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.execute(
-            "SELECT player_name, score, timestamp FROM scores ORDER BY score DESC LIMIT 10"
-        )
-        rows = cursor.fetchall()
-    top_scores = [
-        {"player_name": row[0], "score": row[1], "timestamp": row[2]} for row in rows
-    ]
-    return jsonify(top_scores)
-
-@app.route("/scores", methods=["GET"])
-def get_all_scores():
-    """(Optional) Return all scores, newest first."""
-    with sqlite3.connect(DATABASE) as conn:
-        cursor = conn.execute(
-            "SELECT player_name, score, timestamp FROM scores ORDER BY timestamp DESC"
-        )
-        rows = cursor.fetchall()
-    all_scores = [
-        {"player_name": row[0], "score": row[1], "timestamp": row[2]} for row in rows
-    ]
-    return jsonify(all_scores)
-
-if __name__ == "__main__":
-    init_db()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+```bash
+score_api.py
 ```
+
 ### Run the API
 ```bash
 python score_api.py
@@ -305,7 +236,12 @@ python score_api.py
 curl http://localhost:5000/top-scores
 ```
 
-## Run as a Background Service
+## Persistent Storage in Docker
+Add a volume to docker-compose.yml to keep scores.db across container restarts:
+```yaml
+volumes:
+  - ./data:/app/data
+```
 
 ## Inspect Database
 ```bash
@@ -323,99 +259,12 @@ SELECT * FROM scores;
 ## Auto‑refreshing leaderboard window
 
 ### 1. Create leaderboard.html in your project folder
-```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Snake Game – Top Scores</title>
-    <style>
-        body {
-            font-family: 'Courier New', monospace;
-            background: #1e1e2f;
-            color: #ffffff;
-            text-align: center;
-            padding: 20px;
-        }
-        h1 {
-            color: #00cc66;
-        }
-        table {
-            margin: 0 auto;
-            border-collapse: collapse;
-            width: 80%;
-            max-width: 600px;
-            background: #2d2d3a;
-            border-radius: 10px;
-            overflow: hidden;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
-        }
-        th, td {
-            padding: 12px;
-            border-bottom: 1px solid #444;
-        }
-        th {
-            background: #0f0f1a;
-            color: #00cc66;
-            font-size: 1.2em;
-        }
-        tr:hover {
-            background: #3a3a4a;
-        }
-        .refresh-note {
-            margin-top: 20px;
-            font-size: 0.8em;
-            color: #aaa;
-        }
-    </style>
-</head>
-<body>
-    <h1>🐍 TOP SCORES</h1>
-    <div id="leaderboard">
-        <p>Loading scores...</p>
-    </div>
-    <div class="refresh-note">Updates every 10 seconds</div>
-
-    <script>
-        function fetchScores() {
-            fetch('http://localhost:5000/top-scores')
-                .then(response => response.json())
-                .then(data => {
-                    let html = '<table><tr><th>Rank</th><th>Player</th><th>Score</th><th>Date</th></tr>';
-                    data.forEach((entry, index) => {
-                        const date = new Date(entry.timestamp).toLocaleString();
-                        html += `<tr>
-                                    <td>${index+1}</td>
-                                    <td>${escapeHtml(entry.player_name)}</td>
-                                    <td>${entry.score}</td>
-                                    <td>${date}</td>
-                                 </tr>`;
-                    });
-                    html += '</table>';
-                    document.getElementById('leaderboard').innerHTML = html;
-                })
-                .catch(err => {
-                    document.getElementById('leaderboard').innerHTML = '<p style="color:red">Error loading scores. Make sure the API is running on port 5000.</p>';
-                    console.error(err);
-                });
-        }
-
-        function escapeHtml(str) {
-            return str.replace(/[&<>]/g, function(m) {
-                if (m === '&') return '&amp;';
-                if (m === '<') return '&lt;';
-                if (m === '>') return '&gt;';
-                return m;
-            });
-        }
-
-        // Fetch immediately, then every 10 seconds
-        fetchScores();
-        setInterval(fetchScores, 10000);
-    </script>
-</body>
-</html>
+```bash
+leaderboard.html
 ```
+<p align="center">
+  <img src="figures/top10_web.png" alt="Top-10 scores output" width="600">
+</p>
 
 ### 2. Modify snake.py to open the leaderboard
 ```python
@@ -448,45 +297,23 @@ leaderboard_url = f"file://{os.path.abspath('leaderboard.html')}"
 webbrowser.open(leaderboard_url)
 ```
 
-```bash
-How to evolve this project toward data engineering
+## How to evolve this project toward data engineering
 
-    Replace SQLite with PostgreSQL (or use both).
+-Replace SQLite with PostgreSQL (or use both). Add Docker Compose service for Postgres. Show you can connect to a production‑grade database.
 
-        Add Docker Compose service for Postgres.
+- Add a data pipeline: every time a score is submitted, also write to a raw log table. Create a scheduled job (e.g., inside the API) that aggregates daily top scores into a summary table (leaderboard snapshot).
 
-        Show you can connect to a production‑grade database.
+- Implement a simple ETL script: export scores to a CSV/Parquet file, or load them into a second database for analytics.
 
-    Add a data pipeline
+- Use environment‑aware config – expand to load different configs for dev/prod.
 
-        Every time a score is submitted, also write to a raw log table.
+- Add metrics / monitoring: track number of scores per hour, average score, etc. Expose via a new /stats endpoint.
 
-        Create a scheduled job (e.g., inside the API) that aggregates daily top scores into a summary table (leaderboard snapshot).
+- Containerize with Airflow (complex but impressive): create a DAG that runs deduplication SQL every hour instead of at game start.
 
-    Implement a simple ETL script
-
-        Export scores to a CSV/Parquet file.
-
-        Or load them into a second database for analytics.
-
-    Use environment‑aware config
-
-        Already partially done – expand to load different configs for dev/prod.
-
-    Add metrics / monitoring
-
-        Track number of scores per hour, average score, etc. Expose via a new /stats endpoint.
-
-    Containerize with Airflow (complex but impressive)
-
-        Create a DAG that runs the deduplication SQL every hour instead of at game start.
-
-    Push to a cloud storage
-
-        After the game is closed, automatically upload scores.db to S3 or Google Cloud Storage.
-```
+- Push to cloud storage: after the game is closed, automatically upload scores.db to S3 or Google Cloud Storage.
 ## Add a Desktop short-cut with icon
-**Bash script $HOME/.local/share/applications/snake-game.desktop**
+**Create $HOME/.local/share/applications/snake-game.desktop with:**
 ```bash
 Version=1.0
 Name=Snake Game
@@ -506,7 +333,21 @@ update-desktop-database ~/.local/share/applications/
 chmod +x ~/.local/share/applications/snake-game.desktop
 ```
 
-**Add a Desktop shortcut**
+**Add a Desktop short-cut with icon**
+```bash
+cp ~/.local/share/applications/snake-game.desktop ~/Desktop/
+# Test run
+gtk-launch snake-game.desktop
+```
+Replace gnome-terminal with xterm if needed. Place a custom snake-icon.png in ~/.local/share/icons/.
+
+**Update the desktop database:**
+```bash
+update-desktop-database ~/.local/share/applications/
+chmod +x ~/.local/share/applications/snake-game.desktop
+```
+
+**Add a Desktop shortcut:**
 ```bash
 cp ~/.local/share/applications/snake-game.desktop ~/Desktop/
 # Test run
