@@ -91,8 +91,8 @@ chmod +x run.sh
 ```
 
 <p align="center">
-  <img src="figures/game_end.png" alt="Top-10 scores output" width="300">
-  <img src="figures/snake_output.png" alt="Top-10 scores output" width="300">
+  <img src="figures/game_end.png" alt="Top-10 scores output" width="250">
+  <img src="figures/snake_output.png" alt="Top-10 scores output" width="250">
 </p>
 
 3. **Rebuild Docker image if needed**
@@ -179,14 +179,16 @@ WHITE = (200, 200, 200)  # Text
 
 ### Environment Variables (Docker)
 ```bash
-DISPLAY=${DISPLAY}           # X11 display for GUI
-ENABLE_DEBUG=${ENABLE_DEBUG} # Debug mode toggle
-QT_X11_NO_MITSHM=1          # X11 shared memory fix
-LIBGL_ALWAYS_SOFTWARE=1      # Software rendering fallback
+DISPLAY=${DISPLAY}              # X11 display for GUI
+ENABLE_DEBUG=${ENABLE_DEBUG}    # Debug mode toggle
+QT_X11_NO_MITSHM=1              # X11 shared memory fix
+LIBGL_ALWAYS_SOFTWARE=1         # Software rendering fallback
 ```
 
 ## 🎯 Future Enhancements
 Potential features to add:
+
+- ✅ Pause function (press P, and to resume press any key)
 
 - High score tracking with persistent storage
 
