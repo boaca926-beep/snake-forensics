@@ -195,19 +195,12 @@ LIBGL_ALWAYS_SOFTWARE=1         # Software rendering fallback
 Potential features to add:
 
 - ✅ Pause function (press P, and to resume press any key)
-
-- High score tracking with persistent storage
-
 - ✅ Multiple difficulty levels (speed increases over time)
-
+- High score tracking with persistent storage
 - Power-ups and special food types
-
 - Sound effects and background music
-
 - Two-player mode
-
 - AI-controlled snake for demo mode
-
 - Different maze/wall configurations
 
 ## 🐛 Troubleshooting
@@ -269,7 +262,7 @@ SELECT * FROM scores;
 leaderboard.html
 ```
 <p align="center">
-  <img src="figures/top10_web.png" alt="Top-10 scores output" width="400">
+  <img src="figures/top10_web.png" alt="Top-10 scores output" width="600">
 </p>
 
 ### 2. Modify snake.py to open the leaderboard
