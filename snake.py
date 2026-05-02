@@ -2,6 +2,7 @@
 # from time import sleep
 
 from cmd import PROMPT
+from operator import le
 from urllib import response
 import webbrowser
 import os
@@ -15,13 +16,14 @@ import requests
 # Initialize Pygame
 pygame.init()
 
+# global FPS
+
 # Constants; game basic attributions
 CELL_SIZE = 30  # Size of a single cell
 GRID_WIDTH = 20  # Number of grids to width
 GRID_HEIGHT = 20  # Number of grids to HEIGHT
 WIDTH = GRID_WIDTH * CELL_SIZE  # Total width
 HEIGHT = GRID_HEIGHT * CELL_SIZE  # Total HEIGHT
-FPS = 10  # Game speed moves per second
 
 # Colors (R, G, B)
 BLACK = (0, 0, 0)
@@ -39,6 +41,9 @@ RIGHT = (1, 0)
 
 # API endpoint
 API_BASE = "http://localhost:5000"
+
+# Level progression
+LEVEL_EVERY = 5  # Increase level every N points
 
 
 def random_food_position(snake):
@@ -84,13 +89,15 @@ def draw_food(screen, food):
     pygame.draw.rect(screen, (200, 0, 0), rect, 2)  # border
 
 
-def show_score(screen, font, score, player_name=""):
+def show_score(screen, font, score, player_name="", level=1):
     """Display the current score and player name"""
     score_text = font.render(f"Score: {score}", True, WHITE)
     name_text = font.render(f"Player: {player_name}", True, WHITE)
+    level_text = font.render(f"Level: {level}", True, WHITE)
 
     screen.blit(score_text, (10, 10))
     screen.blit(name_text, (WIDTH - name_text.get_width() - 10, 10))
+    screen.blit(level_text, (WIDTH // 2 - level_text.get_width() // 2, 10))
 
 
 def show_game_over(screen, font, score, player_name=""):
@@ -220,6 +227,8 @@ def send_score_to_api(player_name, score):
 
 # The main program
 def main():
+    global FPS
+
     # Set up display
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
     pygame.display.set_caption("Snake Game")
@@ -228,6 +237,16 @@ def main():
 
     # Get player name
     player_name = get_player_name(screen, font)
+
+    # Difficult selection
+    print("\nChoose difficulty level: 1=Easy (slow), 2=Medium (Medium), 3=Hard (fast)")
+    diff = "1"  # input("Enter 1, 2 or 3 (default=2): ") or "2"
+    base_fps = {"1": 6, "2": 10, "3": 14}.get(diff, 10)
+    FPS = base_fps
+    MAX_FPS = base_fps + 5  # so hard starts faster and can go even higher
+    starting_fps = FPS  # Store initial FPS for reference
+    SPEED_INCREMENT = 0.5  # Increase FPS by this amount for every 2.5 points scored
+    INCREMENT_EVERY = 3  # Increase speed every N foods eaten
 
     # Webbrowser – gracefully handle absence
     leaderboard_url = "http://localhost:5000/leaderboard"
@@ -245,6 +264,7 @@ def main():
     game_over_sent = False
     paused = False
     snake, direction, next_direction, food, score = reset_game()
+    level = 1
 
     running = True
     while running:
@@ -260,7 +280,7 @@ def main():
                 print(event.type)
 
                 if not game_over:
-                    print("Game ongoing ...")
+                    # print("Game ongoing ...")
                     if not paused:
                         # Normal gameplay: change direction or pause
                         if event.key == pygame.K_UP and direction != DOWN:
@@ -291,6 +311,9 @@ def main():
                         game_over = False
                         game_over_sent = False
                         paused = False
+                        FPS = starting_fps
+                        level = 1
+
                     elif event.key == pygame.K_q:
                         running = False
                         pygame.quit()
@@ -303,7 +326,7 @@ def main():
             draw_grid(screen)
             draw_food(screen, food)
             draw_snake(screen, snake)
-            show_score(screen, font, score, player_name)
+            show_score(screen, font, score, player_name, level)
             show_paused(screen, font)
             pygame.display.flip()
             clock.tick(FPS)
@@ -331,8 +354,23 @@ def main():
             if ate_food:
                 # Insert new head without removing tail (snake grows)
                 snake.insert(0, new_head)
-                print(f"new head: {new_head}")
+                # print(f"new head: {new_head}")
                 score += 1.5  # Increase score by 1.5 for each food eaten
+
+                # Level progession
+                new_level = int(score) // LEVEL_EVERY + 1
+                if new_level > level:
+                    level = new_level
+                    print(f"⭐ Level up! Now level {level}")
+                    # Optional: increase speed on level up
+                    FPS = min(MAX_FPS, FPS + SPEED_INCREMENT)
+                    print(f"Speed increased! Current FPS: {FPS}")
+
+                # Gradual speed increase
+                if score % INCREMENT_EVERY == 0:
+                    FPS = min(MAX_FPS, FPS + SPEED_INCREMENT)
+                    print(f"Speed increased! Current FPS: {FPS}")
+
                 # Generate new food at a position not occupied by the snake
                 free_cells = [
                     (x, y)
@@ -372,7 +410,7 @@ def main():
         draw_grid(screen)  # Optional grid
         draw_food(screen, food)  # Draw food
         draw_snake(screen, snake)  # Draw snake
-        show_score(screen, font, score, player_name)  # Show score
+        show_score(screen, font, score, player_name, level)  # Show score
 
         if game_over:
             # Use a flag to avoid sending multiple times

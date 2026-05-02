@@ -213,9 +213,6 @@ Potential features to add:
 ## 🐛 Troubleshooting
 
 ### Common Issues
-## 🐛 Troubleshooting
-
-### Common Issues
 
 | Issue | Solution |
 |-------|----------|
