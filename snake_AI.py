@@ -1,0 +1,470 @@
+# from re import S
+# from time import sleep
+
+from cmd import PROMPT
+from operator import le
+from urllib import response
+import webbrowser
+import os
+
+from flask import Blueprint, request
+import pygame
+import random
+import sys
+import requests
+
+# Initialize Pygame
+pygame.init()
+
+# ========================== GAME MODES ==========================
+VS_AI = True  # Set to True for Human vs AI, False for single‑player
+# ================================================================
+
+# Constants; game basic attributions
+CELL_SIZE = 30  # Size of a single cell
+GRID_WIDTH = 20  # Number of grids to width
+GRID_HEIGHT = 20  # Number of grids to HEIGHT
+WIDTH = GRID_WIDTH * CELL_SIZE  # Total width
+HEIGHT = GRID_HEIGHT * CELL_SIZE  # Total HEIGHT
+
+# Colors (R, G, B)
+BLACK = (0, 0, 0)
+WHITE = (200, 200, 200)
+GREEN = (0, 200, 0)  # Human snake color
+BLUE = (0, 0, 200)  # AI snake color
+RED = (255, 0, 0)
+DARK_GREEN = (0, 150, 0)
+DARK_BLUE = (0, 50, 100)
+GRAY = (50, 50, 50)
+
+# Directions
+UP = (0, -1)
+DOWN = (0, 1)
+LEFT = (-1, 0)
+RIGHT = (1, 0)
+
+# API endpoint
+API_BASE = "http://localhost:5000"
+
+# Level progression
+LEVEL_EVERY = 5  # Increase level every N points
+
+
+def random_food_position(snake, snake2=None):
+    """
+    Generate a radom position that is not occupied by any snake.
+    """
+
+    while (
+        True
+    ):  # Keep creating random food to feed the snake, except interruptions eg., game over, etc.
+        x = random.randint(0, GRID_WIDTH - 1)  # Allowed food x coordinates
+        y = random.randint(0, GRID_HEIGHT - 1)  # Allowed food y coordinates
+        if (x, y) not in snake and (snake2 is None or (x, y) not in snake2):
+            return (x, y)
+
+
+def draw_grid(screen):
+    """
+    Draw grid lines for better visibility.
+    """
+
+    for x in range(0, WIDTH, CELL_SIZE):
+        pygame.draw.line(screen, GRAY, (x, 0), (x, HEIGHT))
+    for y in range(0, HEIGHT, CELL_SIZE):
+        pygame.draw.line(screen, GRAY, (0, y), (WIDTH, y))
+
+
+def draw_snake(screen, snake, color, border_color):
+    """Draw the snake on the screen"""
+    for segment in snake:
+        rect = pygame.Rect(segment[0] * CELL_SIZE, segment[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+        pygame.draw.rect(screen, color, rect)
+        pygame.draw.rect(screen, border_color, rect, 2)  # border
+        # print(
+        #    f"rec. coord: {segment[0] * CELL_SIZE}, {segment[1] * CELL_SIZE}, {CELL_SIZE}, {CELL_SIZE}"
+        # )
+
+
+def draw_food(screen, food):
+    """Draw the food on the screen"""
+    rect = pygame.Rect(food[0] * CELL_SIZE, food[1] * CELL_SIZE, CELL_SIZE, CELL_SIZE)
+    pygame.draw.rect(screen, RED, rect)
+    pygame.draw.rect(screen, (200, 0, 0), rect, 2)  # border
+
+
+def show_score(screen, font, score, player_name="", level=1, x=10, y=10):
+    """Display score for a player (default top‑left)."""
+    score_text = font.render(f"Score: {score}", True, WHITE)
+    name_text = font.render(f"{player_name}", True, WHITE)
+    level_text = font.render(f"Level: {level}", True, WHITE)
+    screen.blit(score_text, (x, y))
+    screen.blit(name_text, (x, y + 30))
+    screen.blit(level_text, (x, y + 60))
+
+
+def show_game_over(screen, font, score, player_name=""):
+    """Display game over message and final score."""
+    screen.fill(BLACK)
+    game_over_text = font.render("GAME OVER", True, RED)
+    score_text = font.render(f"Final Score: {score}", True, WHITE)
+    restart_text = font.render("Press R to restart or Q to quit", True, WHITE)
+    name_text = font.render(f"Player: {player_name}", True, WHITE)
+
+    # Center the message
+    screen.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 2 - 60))
+    screen.blit(score_text, (WIDTH // 2 - score_text.get_width() // 2, HEIGHT // 2 - 20))
+    screen.blit(name_text, (WIDTH // 2 - name_text.get_width() // 2, HEIGHT // 2 + 20))
+    screen.blit(restart_text, (WIDTH // 2 - restart_text.get_width() // 2, HEIGHT // 2 + 60))
+    pygame.display.flip()
+
+
+def show_paused(screen, font):
+    """Display paused message."""
+    paused_text = font.render("PAUSED", True, WHITE)
+    resume_text = font.render("Press any key to resume", True, WHITE)  # <-- updated message
+    screen.blit(paused_text, (WIDTH // 2 - paused_text.get_width() // 2, HEIGHT // 2 - 30))
+    screen.blit(resume_text, (WIDTH // 2 - resume_text.get_width() // 2, HEIGHT // 2 + 20))
+    pygame.display.flip()
+
+
+def get_player_name(screen, font):
+    """Get player name before game starts."""
+    name = ""
+    input_active = True
+    cursor_visible = True
+    cursor_timer = 0
+
+    prompt_text = font.render("Enter your name: ", True, WHITE)
+    instruction_text = font.render("Press Enter to start, ESC to default", True, GRAY)
+
+    while input_active:
+        screen.fill(BLACK)
+
+        # Draw title
+        title_text = font.render("SNAKE GAME", True, GREEN)
+        screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, HEIGHT // 2 - 150))
+
+        # Draw prompt
+        screen.blit(prompt_text, (WIDTH // 2 - prompt_text.get_width() // 2, HEIGHT // 2 - 50))
+
+        # Draw name input with blinking cursor
+        display_name = name
+        if cursor_visible:
+            display_name += "_"
+        name_surface = font.render(display_name, True, GREEN)
+        screen.blit(name_surface, (WIDTH // 2 - name_surface.get_width() // 2, HEIGHT // 2))
+
+        # Draw instruction
+        screen.blit(
+            instruction_text, (WIDTH // 2 - instruction_text.get_width() // 2, HEIGHT // 2 + 80)
+        )
+
+        pygame.display.flip()
+
+        # Blinking cursor (every 30 frames)
+        cursor_timer += 1
+        if cursor_timer >= 300:
+            cursor_visible = not cursor_visible
+            cursor_timer = 0
+
+        # input_active = False
+        # Event handling
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_RETURN:
+                    if name:
+                        input_active = False
+                    elif not name:
+                        name = "Player"  # Default if no name entered
+                        input_active = False
+
+                elif event.key == pygame.K_ESCAPE:
+                    name = "Player"
+                    input_active = False
+
+                elif event.key == pygame.K_BACKSPACE:
+                    name = name[:-1]
+
+                else:
+                    # Allow letters, number, and spaces (max 15 chars)
+                    if len(name) < 15 and event.unicode.isprintable() and event.unicode != "":
+                        name += event.unicode
+
+    return name if name else "Player"
+
+
+def reset_game():
+    """Reset game variables for a new round."""
+    # Initial snake: three cells in the middle, movin right
+    start_x = GRID_WIDTH // 2
+    start_y = GRID_HEIGHT // 2
+    snake = [(start_x, start_y), (start_x - 1, start_y), (start_x - 2, start_y)]
+    direction = RIGHT
+    next_direction = RIGHT
+    score = 0
+
+    return snake, direction, next_direction, score
+
+
+def reset_ai_snake():
+    """Reset AI snake to a mirrored starting position."""
+    start_x = GRID_WIDTH - GRID_WIDTH // 2 - 1
+    start_y = GRID_HEIGHT // 2
+    snake = [(start_x, start_y), (start_x + 1, start_y), (start_x + 2, start_y)]
+    direction = LEFT
+    next_direction = LEFT
+    score = 0
+
+    return snake, direction, next_direction, score
+
+
+def send_score_to_api(player_name, score, level):
+    url = f"{API_BASE}/score"
+    payload = {"player_name": player_name, "score": int(score), "level": level}
+    try:
+        response = requests.post(url, json=payload, timeout=2)
+        if response.status_code == 201:
+            print(f"Score saved: {player_name} - {score} (level {level})")
+        else:
+            print(f"Failed to save score: {response.status_code} - {response.text}")
+    except requests.RequestException as e:
+        print(f"Error sending score to API: {e}")
+
+
+# The main program
+def main():
+    global FPS
+
+    # Set up display
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Snake Game")
+    clock = pygame.time.Clock()
+    font = pygame.font.Font(None, 36)
+
+    # Get player name
+    player_name = get_player_name(screen, font)
+
+    # Difficult selection
+    print("\nChoose difficulty level: 1=Easy (slow), 2=Medium (Medium), 3=Hard (fast)")
+    diff = "1"  # input("Enter 1, 2 or 3 (default=2): ") or "2"
+    base_fps = {"1": 6, "2": 10, "3": 14}.get(diff, 10)
+    FPS = base_fps
+    MAX_FPS = base_fps + 5  # so hard starts faster and can go even higher
+    starting_fps = FPS  # Store initial FPS for reference
+    SPEED_INCREMENT = 0.5  # Increase FPS by this amount for every 2.5 points scored
+    INCREMENT_EVERY = 3  # Increase speed every N foods eaten
+
+    # Webbrowser – gracefully handle absence
+    leaderboard_url = "http://localhost:5000/leaderboard"
+    try:
+        # Only attempt if DISPLAY is set (X11 available for pygame)
+        if os.environ.get("DISPLAY"):
+            webbrowser.open(leaderboard_url)
+        else:
+            print("No DISPLAY set – skipping automatic browser open.")
+    except Exception as e:
+        print(f"Browser open skipped (Docker environment): {e}")
+
+    # Game state
+    game_over = False
+    game_over_sent = False
+    paused = False
+
+    # Human player (always present)
+    snake, direction, next_direction, score = reset_game()
+    level = 1
+
+    # AI oppenent (optional, can be added later)
+    if VS_AI:
+        snake_ai, direction_ai, next_direction_ai, score_ai = reset_ai_snake()
+        level_ai = 1
+        print("AI opponent enabled! (not implemented yet)")
+    else:
+        snake_ai = None
+        direction_ai = None
+        next_direction_ai = None
+        score_ai = 0
+        level_ai = 0
+        print("Playing against yourself! (no AI opponent)")
+
+    # Initial food (no collision)
+    food = random_food_position(snake, snake_ai)
+
+    winner = None  # Track winner for potential future use
+    running = True
+    while running:
+        # === Event Handling ===
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                print("Here we quit!")
+                running = False
+                pygame.quit()
+                sys.exit()
+
+            if event.type == pygame.KEYDOWN:
+                print(event.type)
+
+                if not game_over:
+                    # print("Game ongoing ...")
+                    if not paused:
+                        # Normal gameplay: change direction or pause
+                        if event.key == pygame.K_UP and direction != DOWN:
+                            next_direction = UP
+                        elif event.key == pygame.K_DOWN and direction != UP:
+                            next_direction = DOWN
+                        elif event.key == pygame.K_LEFT and direction != RIGHT:
+                            next_direction = LEFT
+                        elif event.key == pygame.K_RIGHT and direction != LEFT:
+                            next_direction = RIGHT
+                        elif event.key == pygame.K_p:
+                            paused = True  # Pause the game
+                    else:
+                        # Game is paused: any key press resumes
+                        # (except we still allow Q to quit if desired)
+                        if event.key == pygame.K_q:
+                            running = False
+                            pygame.quit()
+                            sys.exit()
+                        else:
+                            paused = False  # Resume on any other key
+                else:
+                    # When game over, check for restart or quit
+                    if event.key == pygame.K_r:
+                        # Reset everything
+                        print(f"Reset game!")
+                        snake, direction, next_direction, score = reset_game()
+                        level = 1
+                        if VS_AI:
+                            snake_ai, direction_ai, next_direction_ai, score_ai = reset_ai_snake()
+                            level_ai = 1
+                        food = random_food_position(snake, snake_ai)
+                        game_over = False
+                        game_over_sent = False
+                        paused = False
+                        FPS = starting_fps
+                        winner = None
+                    elif event.key == pygame.K_q:
+                        running = False
+                        pygame.quit()
+                        sys.exit()
+
+        # ========== PAUSE HANDLING ==========
+        # If paused, draw everything but skip game logic
+        if paused and not game_over:
+            screen.fill(BLACK)
+            draw_grid(screen)
+            draw_food(screen, food)
+            draw_snake(screen, snake, GREEN, DARK_GREEN)
+            if VS_AI:
+                draw_snake(screen, snake_ai, BLUE, DARK_GREEN)
+            show_score(screen, font, score, player_name, level, 10, 10)
+            if VS_AI:
+                show_score(screen, font, score_ai, "AI", level_ai, WIDTH - 150, 10)
+            show_paused(screen, font)
+            pygame.display.flip()
+            clock.tick(FPS)
+            continue  # Do not update game state
+
+        if not game_over:
+            # === Update Game Logic ===
+            direction = next_direction  # Apply the queued direction
+
+            # Calculaion new head position
+            head_x, head_y = snake[0]
+            # print(f"head: (x, y) = ({head_x}, {head_y})")
+            dx, dy = direction
+            # print(f"(dx, dy) = ({dx}, {dy})")
+            new_head = (head_x + dx, head_y + dy)
+            # print(f"new head: (x, y) = {new_head}")
+
+            # Check for food collision
+            ate_food = new_head == food
+            # print(f"ate_food: {ate_food}")
+
+            # print(food)
+
+            # Perform movement
+            if ate_food:
+                # Insert new head without removing tail (snake grows)
+                snake.insert(0, new_head)
+                # print(f"new head: {new_head}")
+                score += 1.5  # Increase score by 1.5 for each food eaten
+
+                # Level progession
+                new_level = int(score) // LEVEL_EVERY + 1
+                if new_level > level:
+                    level = new_level
+                    print(f"⭐ Level up! Now level {level}")
+                    # Optional: increase speed on level up
+                    FPS = min(MAX_FPS, FPS + SPEED_INCREMENT)
+                    print(f"Speed increased! Current FPS: {FPS}")
+
+                # Generate new food at a position not occupied by the snake
+                free_cells = [
+                    (x, y)
+                    for x in range(GRID_WIDTH)
+                    for y in range(GRID_HEIGHT)
+                    if (x, y) not in snake
+                ]
+                if not free_cells:
+                    # Snake has filled the grid - player wins
+                    game_over = True
+                    continue
+                food = random.choice(free_cells)
+            else:
+                # Normal move: insert new head and remove tail
+                snake.insert(0, new_head)
+                snake.pop()
+
+            # === Collision Detection ===
+            # Check wall collision
+            if (
+                new_head[0] < 0
+                or new_head[0] >= GRID_WIDTH
+                or new_head[1] < 0
+                or new_head[1] >= GRID_HEIGHT
+            ):
+                game_over = True
+                continue
+
+            # Check self collision (head colliding with body)
+            # print(f"snake: {snake[1:]}, new_head: {new_head}")
+            if new_head in snake[1:]:
+                game_over = True
+                continue
+
+        # === Drawing ===
+        screen.fill(BLACK)  # Clear screen
+        draw_grid(screen)  # Optional grid
+        draw_food(screen, food)  # Draw food
+        draw_snake(screen, snake, GREEN, DARK_GREEN)  # Draw snake
+        if VS_AI:
+            draw_snake(screen, snake_ai, BLUE, DARK_BLUE)
+
+        # Display scores and level
+        show_score(screen, font, score, player_name, level, 10, 10)
+        if VS_AI:
+            show_score(screen, font, score_ai, "AI", level_ai, WIDTH - 150, 10)
+
+        if game_over:
+            # Use a flag to avoid sending multiple times
+            if not game_over_sent:
+                send_score_to_api(player_name, score, level)
+                game_over_sent = True
+            show_game_over(screen, font, score, player_name)
+        elif paused:
+            # Extra safety (should already be handled above)
+            show_paused(screen, font)
+
+        pygame.display.flip()  # Update display
+        clock.tick(FPS)  # Control game speed
+
+
+if __name__ == "__main__":
+    print("Starting to make a snake game ...")
+    main()
