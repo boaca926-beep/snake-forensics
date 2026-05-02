@@ -21,7 +21,7 @@ GRID_WIDTH = 20  # Number of grids to width
 GRID_HEIGHT = 20  # Number of grids to HEIGHT
 WIDTH = GRID_WIDTH * CELL_SIZE  # Total width
 HEIGHT = GRID_HEIGHT * CELL_SIZE  # Total HEIGHT
-FPS = 5  # Game speed moves per second
+FPS = 10  # Game speed moves per second
 
 # Colors (R, G, B)
 BLACK = (0, 0, 0)
@@ -332,7 +332,7 @@ def main():
                 # Insert new head without removing tail (snake grows)
                 snake.insert(0, new_head)
                 print(f"new head: {new_head}")
-                score += 1
+                score += 1.5  # Increase score by 1.5 for each food eaten
                 # Generate new food at a position not occupied by the snake
                 free_cells = [
                     (x, y)
