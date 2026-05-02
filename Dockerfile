@@ -22,6 +22,10 @@ RUN apt-get update && apt-get install -y \
     libxtst6 \
     && rm -rf /var/lib/apt/lists/*
 
+# Suppress warnings
+ENV GTK_MODULES=""
+ENV NO_AT_BRIDGE=1
+
 # Force software rendering for compatibility
 ENV LIBGL_ALWAYS_SOFTWARE=1
 ENV SDL_VIDEODRIVER=x11
