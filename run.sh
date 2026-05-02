@@ -41,6 +41,7 @@ fix_docker_permissions() {
 }
 
 # Check Docker
+
 echo -e "${YELLOW}Checking Docker installation...${NC}"
 
 if ! command -v docker &> /dev/null; then

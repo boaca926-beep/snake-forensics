@@ -219,6 +219,7 @@ Potential features to add:
 
 | Issue | Solution |
 |-------|----------|
+| "Error response from daemon: Conflict" | docker system prune -a && docker volume prune |
 | "Cannot connect to X server" | `xhost +local:docker` and `export DISPLAY=$DISPLAY` |
 | Pygame won't install | `sudo apt-get install python3-pygame` (Ubuntu) |
 | Game runs too fast/slow | Adjust `FPS` in `snake.py` (higher = faster, lower = slower) |
@@ -271,7 +272,7 @@ SELECT * FROM scores;
 leaderboard.html
 ```
 <p align="center">
-  <img src="figures/top10_web.png" alt="Top-10 scores output" width="600">
+  <img src="figures/top10_web.png" alt="Top-10 scores output" width="400">
 </p>
 
 ### 2. Modify snake.py to open the leaderboard

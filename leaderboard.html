@@ -18,7 +18,7 @@
             margin: 0 auto;
             border-collapse: collapse;
             width: 80%;
-            max-width: 600px;
+            max-width: 700px;
             background: #2d2d3a;
             border-radius: 10px;
             overflow: hidden;
@@ -36,6 +36,18 @@
         tr:hover {
             background: #3a3a4a;
         }
+        .rank-1 {
+            color: gold;
+            font-weight: bold;
+        }
+        .rank-2 {
+            color: silver;
+            font-weight: bold;
+        }
+        .rank-3 {
+            color: #cd7f32;
+            font-weight: bold;
+        }
         .refresh-note {
             margin-top: 20px;
             font-size: 0.8em;
@@ -48,49 +60,149 @@
             border-radius: 8px;
             display: inline-block;
         }
+        .debug-info {
+            margin-top: 20px;
+            padding: 10px;
+            background: #2d2d3a;
+            border-radius: 5px;
+            font-size: 0.8em;
+            color: #aaa;
+            display: inline-block;
+        }
+        button {
+            margin: 20px;
+            padding: 8px 16px;
+            background: #00cc66;
+            color: #1e1e2f;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #00ff88;
+        }
+        .timestamp-local {
+            font-weight: normal;
+        }
     </style>
 </head>
 <body>
     <h1>🐍 TOP SCORES</h1>
+    <button onclick="fetchScores()">🔄 Refresh</button>
     <div id="leaderboard">
         <p>Loading scores...</p>
     </div>
-    <div class="refresh-note">Updates every 10 seconds</div>
+    <div class="refresh-note">Auto-updates every 10 seconds | Times shown in your local timezone</div>
+    <div id="debug-info" class="debug-info"></div>
 
     <script>
+        function formatTimestamp(timestamp) {
+            try {
+                // CRITICAL FIX: Mark the timestamp as UTC if it doesn't have a timezone indicator
+                let utcString = timestamp;
+                if (!timestamp.includes('Z') && !timestamp.includes('+') && !timestamp.includes('-', 10)) {
+                    utcString = timestamp + 'Z';
+                }
+
+                const utcDate = new Date(utcString);
+
+                // Check if date is valid
+                if (isNaN(utcDate.getTime())) {
+                    return 'Invalid date';
+                }
+
+                // Format options for local time display
+                const options = {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                };
+
+                // This will correctly add your timezone offset
+                return utcDate.toLocaleString(undefined, options);
+            } catch (e) {
+                console.error('Error formatting timestamp:', timestamp, e);
+                return timestamp || 'Unknown';
+            }
+        }
+
         function fetchScores() {
-            fetch('http://localhost:5000/top-scores')
+            fetch('/top-scores')
                 .then(response => {
                     if (!response.ok) throw new Error(`HTTP ${response.status}`);
                     return response.json();
                 })
                 .then(data => {
+                    if (!data || data.length === 0) {
+                        document.getElementById('leaderboard').innerHTML =
+                            '<p>No scores yet. Be the first to play!</p>';
+                        return;
+                    }
+
                     let html = `<table>
                         <thead>
-                            <tr><th>Rank</th><th>Player</th><th>Score</th><th>Date</th></tr>
+                            <tr>
+                                <th>Rank</th>
+                                <th>Player</th>
+                                <th>Score</th>
+                                <th>Date & Time (Local)</th>
+                            </tr>
                         </thead>
-                        <tbody>
-                    `;
+                        <tbody>`;
+
                     data.forEach((entry, index) => {
-                        const date = new Date(entry.timestamp).toLocaleString();
+                        const rank = index + 1;
+                        let rankClass = '';
+                        if (rank === 1) rankClass = 'rank-1';
+                        else if (rank === 2) rankClass = 'rank-2';
+                        else if (rank === 3) rankClass = 'rank-3';
+
+                        const formattedDate = formatTimestamp(entry.timestamp);
+
                         html += `<tr>
-                                    <td>${index + 1}</td>
+                                    <td class="${rankClass}">${rank}</td>
                                     <td>${escapeHtml(entry.player_name)}</td>
                                     <td>${entry.score}</td>
-                                    <td>${date}</td>
-                                 </tr>`;
+                                    <td class="timestamp-local">${formattedDate}</td>
+                                </tr>`;
                     });
-                    html += `</tbody></table>`;
+
+                    html += `</tbody>
+                    </table>`;
                     document.getElementById('leaderboard').innerHTML = html;
+
+                    /*
+                    // Show debug info with the latest timestamp
+                    if (data.length > 0 && data[0].timestamp) {
+                        const latestTimestamp = data[0].timestamp;
+                        const fixedTimestamp = latestTimestamp + 'Z';
+                        const utcDate = new Date(fixedTimestamp);
+                        const localDate = new Date();
+                        document.getElementById('debug-info').innerHTML = `
+                            📅 Server time (UTC): ${latestTimestamp}<br>
+                            🕐 Converted to local time: ${utcDate.toLocaleString()}<br>
+                            🕐 Your browser's current time: ${localDate.toLocaleString()}<br>
+                            📊 Your timezone offset: ${-localDate.getTimezoneOffset() / 60} hours from UTC<br>
+                            ✅ Times above should match! If they don't, the timezone conversion is working correctly.
+                        `;
+                    }
+                    */
                 })
                 .catch(err => {
                     document.getElementById('leaderboard').innerHTML =
-                        `<p class="error">⚠️ Error loading scores. Make sure the API is running on port 5000.</p>`;
-                    console.error(err);
+                        `<p class="error">⚠️ Error loading scores. Make sure the API is running on port 5000.</p>
+                         <p class="error">Error details: ${err.message}</p>`;
+                    console.error('Fetch error:', err);
                 });
         }
 
         function escapeHtml(str) {
+            if (!str) return '';
             return str.replace(/[&<>]/g, function(m) {
                 if (m === '&') return '&amp;';
                 if (m === '<') return '&lt;';
