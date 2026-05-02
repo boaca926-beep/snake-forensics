@@ -92,8 +92,8 @@ chmod +x run.sh
 ```
 
 <p align="center">
-  <img src="figures/game_end.png" alt="Top-10 scores output" width="250">
-  <img src="figures/snake_output.png" alt="Top-10 scores output" width="250">
+  <img src="figures/game_end.png" alt="Top-10 scores output" width="400">
+  <img src="figures/snake_output.png" alt="Top-10 scores output" width="400">
 </p>
 
 3. **Rebuild Docker image if needed**
