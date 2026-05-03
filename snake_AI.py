@@ -18,7 +18,7 @@ import requests
 pygame.init()
 
 # ========================== GAME MODES ==========================
-VS_AI = True  # Set to True for Human vs AI, False for single‑player
+VS_AI = False  # Set to True for Human vs AI, False for single‑player
 # ================================================================
 
 # Constants; game basic attributions
@@ -467,12 +467,21 @@ def main():
                     print(f"Speed increased! Current FPS: {FPS}")
 
                 # Generate new food at a position not occupied by the snake
-                free_cells = [
-                    (x, y)
-                    for x in range(GRID_WIDTH)
-                    for y in range(GRID_HEIGHT)
-                    if (x, y) not in snake
-                ]
+                if VS_AI:
+                    free_cells = [
+                        (x, y)
+                        for x in range(GRID_WIDTH)
+                        for y in range(GRID_HEIGHT)
+                        if (x, y) not in snake and (x, y) not in snake_ai
+                    ]
+                else:
+                    free_cells = [
+                        (x, y)
+                        for x in range(GRID_WIDTH)
+                        for y in range(GRID_HEIGHT)
+                        if (x, y) not in snake
+                    ]
+
                 if not free_cells:
                     # Snake has filled the grid - player wins
                     game_over = True
@@ -484,26 +493,28 @@ def main():
                 snake.pop()
 
             # AI eats food
-            if VS_AI and ate_food_ai:
-                snake_ai.insert(0, new_head_ai)
-                score_ai += 1.5
-                new_level_ai = int(score_ai) // LEVEL_EVERY + 1
-                if new_level_ai > level_ai:
-                    level_ai = new_level_ai
-                    # Optionally increase FPS for AI too – same speed for fairness
-                    # FPS = min(MAX_FPS, FPS + SPEED_INCREMENT)
-                # Regenerate food (avoid both snakes)
-                free_cells = [(x, y) for x in range(GRID_WIDTH)
-                              for y in range(GRID_HEIGHT)
-                              if (x, y) not in snake and (x, y) not in snake_ai]
-                if not free_cells:
-                    game_over = True
-                    winner = "AI"
-                    continue
-                food = random.choice(free_cells)
-            elif VS_AI:
-                snake_ai.insert(0, new_head_ai)
-                snake_ai.pop()
+            if VS_AI:
+                if ate_food_ai:
+                    snake_ai.insert(0, new_head_ai)
+                    score_ai += 1.5
+                    new_level_ai = int(score_ai) // LEVEL_EVERY + 1
+                    if new_level_ai > level_ai:
+                        level_ai = new_level_ai
+                        # Optionally increase FPS for AI too – same speed for fairness
+                        # FPS = min(MAX_FPS, FPS + SPEED_INCREMENT)
+                    # Regenerate food (avoid both snakes)
+                    free_cells = [(x, y) for x in range(GRID_WIDTH)
+                                for y in range(GRID_HEIGHT)
+                                if (x, y) not in snake and (x, y) not in snake_ai]
+
+                    if not free_cells:
+                        game_over = True
+                        winner = "AI"
+                        continue
+                    food = random.choice(free_cells)
+                else:
+                    snake_ai.insert(0, new_head_ai)
+                    snake_ai.pop()
 
             # === Collision Detection ===
             # Check wall collision
@@ -514,13 +525,41 @@ def main():
                 or new_head[1] >= GRID_HEIGHT
             ):
                 game_over = True
+                winner = "Human (Wall)"
                 continue
 
             # Check self collision (head colliding with body)
             # print(f"snake: {snake[1:]}, new_head: {new_head}")
             if new_head in snake[1:]:
                 game_over = True
+                winner = "Human (Self)"
                 continue
+
+            # AI collision checks (only if VS_AI is True)
+            if VS_AI:
+                # Check AI self collision
+                if new_head_ai in snake_ai[1:]:
+                    game_over = True
+                    winner = "AI (Self)"
+                    continue
+
+                # Check human head vs AI body
+                if new_head in snake_ai:
+                    game_over = True
+                    winner = "AI"
+                    continue
+
+                # Check AI head vs human body
+                if new_head_ai in snake:
+                    game_over = True
+                    winner = "Human"
+                    continue
+
+                # Check head-on collision (both heads same cell)
+                if new_head == new_head_ai:
+                    game_over = True
+                    winner = "Tie!"
+                    continue
 
         # === Drawing ===
         screen.fill(BLACK)  # Clear screen
