@@ -1,5 +1,3 @@
-# Snake Game 🐍
-
 # Snake Game (forensics) 🐍
 
 A classic Snake game built with Python and Pygame featuring **Human vs AI** mode! Control your snake, compete against an AI opponent, eat food to grow longer, and try to achieve the highest score!
