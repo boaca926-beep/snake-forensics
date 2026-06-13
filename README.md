@@ -1,6 +1,6 @@
 # Snake Game 🐍
 
-# Snake Game 🐍
+# Snake Game (forensics) 🐍
 
 A classic Snake game built with Python and Pygame featuring **Human vs AI** mode! Control your snake, compete against an AI opponent, eat food to grow longer, and try to achieve the highest score!
 
@@ -48,7 +48,7 @@ A classic Snake game built with Python and Pygame featuring **Human vs AI** mode
    ```bash
    music/
    ├── eat.wav              # Eating sound effect
-   ├── game_over.wav        # Game over sound effect  
+   ├── game_over.wav        # Game over sound effect
    └── background_rock.mp3  # Background music
    ```
 2 **Supported formats:**
@@ -1033,7 +1033,7 @@ For ML / AI Engineer
 - Compare AI strategies - Implement and benchmark different pathfinding algorithms
 ```
 
-## For data scientist 
+## For data scientist
 ```python
 # Add to your project:
 1. ML model for score prediction
